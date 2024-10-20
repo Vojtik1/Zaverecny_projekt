@@ -1,0 +1,55 @@
+# Python-related files
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+*.env
+*.envrc
+.env.local
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+# Virtual Environment folder
+venv/
+env/
+
+# Django-related
+db.sqlite3
+/media/
+*.log
+
+# Ignore static and media files (if dynamically generated)
+staticfiles/
+media/
+
+# Ignore .migrations folders in every app
+**/migrations/
+!**/migrations/__init__.py
+
+# Ignore secret settings
+config/settings/local.py
+config/settings/*.local
+
+# Ignore JetBrains PyCharm or IntelliJ project settings
+.idea/
+
+# Ignore VSCode settings
+.vscode/
+
+# Ignore macOS system files
+.DS_Store
+
+# Ignore Jupyter Notebook checkpoints
+.ipynb_checkpoints
+
+# Ignore node_modules folder if using Node.js for frontend assets
+node_modules/
+npm-debug.log
+
+# Ignore simfin data directory
+simfin_data/
+
+# Ignore all kinds of caches
+*.bak
+*.swp
+*.swo

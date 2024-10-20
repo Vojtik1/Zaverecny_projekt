@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+
+{% block title %}Stock Backtester{% endblock %}
+
+{% block content %}
+<h2>Stock Screener</h2>
+<form method="GET" action=".">
+    <label for="market_cap_min">Min Market Cap:</label>
+    <input type="number" id="market_cap_min" name="market_cap_min" placeholder="Min Market Cap">
+    
+    <label for="market_cap_max">Max Market Cap:</label>
+    <input type="number" id="market_cap_max" name="market_cap_max" placeholder="Max Market Cap">
+    
+    <button type="submit">Filter</button>
+</form>
+
+<h2>Available Stocks</h2>
+
+<table>
+    <thead>
+        <tr>
+            <th>Ticker</th>
+            <th>Name</th>
+            <th>Market Cap</th>
+            <th>Last Price</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for stock in stocks %}
+        <tr>
+            <td><a href="{% url 'stock_detail' stock.ticker %}">{{ stock.ticker }}</a></td>
+            <td>{{ stock.name }}</td>
+            <td>{{ stock.market_cap|floatformat:2 }}</td>
+            <td>{{ stock.last_price|floatformat:2 }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

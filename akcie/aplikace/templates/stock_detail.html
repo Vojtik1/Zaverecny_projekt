@@ -1,0 +1,139 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ stock.name }}{% endblock %}
+
+{% block content %}
+
+<h2>{{ stock.name }} ({{ stock.ticker }})</h2>
+
+<!-- Sekce pro zobrazení aktuálních dat z yFinance -->
+<h3>Current Data from yfinance</h3>
+<table>
+    <tr>
+        <th>Last Price:</th>
+        <td>{{ stock.last_price }}</td>
+    </tr>
+    <tr>
+        <th>Market Cap:</th>
+        <td>{{ stock.market_cap }}</td>
+    </tr>
+    <tr>
+        <th>P/E Ratio:</th>
+        <td>{{ stock.pe_ratio }}</td>
+    </tr>
+    <tr>
+        <th>EBITDA:</th>
+        <td>{{ stock.ebitda }}</td>
+    </tr>
+    <tr>
+        <th>Sector:</th>
+        <td>{{ stock.sector }}</td>
+    </tr>
+    <tr>
+        <th>industry:</th>
+        <td>{{ stock.industry }}</td>
+    </tr>
+</table>
+
+<!-- Odkazy na jednotlivé sekce výkazů -->
+<h3>Financial Statements</h3>
+<ul>
+    <li><a href="#income_statement">Income Statement</a></li>
+    <li><a href="#balance_sheet">Balance Sheet</a></li>
+    <li><a href="#cash_flow_statement">Cash Flow Statement</a></li>
+</ul>
+
+<!-- Sekce pro Income Statement -->
+<h3 id="income_statement">Income Statement</h3>
+{% if income_statements %}
+<table>
+    <tr>
+        <th>Fiscal Year</th>
+        <th>Revenue</th>
+        <th>Gross Profit</th>
+        <th>Operating Income</th>
+        <th>Net Income</th>
+    </tr>
+    {% for statement in income_statements %}
+    <tr>
+        <td>{{ statement.fiscal_year }}</td>
+        <td>{{ statement.revenue }}</td>
+        <td>{{ statement.gross_profit }}</td>
+        <td>{{ statement.operating_income }}</td>
+        <td>{{ statement.net_income }}</td>
+    </tr>
+    {% endfor %}
+</table>
+{% else %}
+<p>No income statement data available for this company.</p>
+{% endif %}
+
+<!-- Sekce pro Balance Sheet -->
+<h3 id="balance_sheet">Balance Sheet</h3>
+{% if balance_sheets %}
+<table>
+    <tr>
+        <th>Fiscal Year</th>
+        <th>Total Assets</th>
+        <th>Total Liabilities</th>
+        <th>Total Equity</th>
+        <th>Cash & Equivalents</th>
+        <th>Short-Term Debt</th>
+        <th>Long-Term Debt</th>
+    </tr>
+    {% for statement in balance_sheets %}
+    <tr>
+        <td>{{ statement.fiscal_year }}</td>
+        <td>{{ statement.total_assets }}</td>
+        <td>{{ statement.total_liabilities }}</td>
+        <td>{{ statement.total_equity }}</td>
+        <td>{{ statement.cash_and_equivalents }}</td>
+        <td>{{ statement.short_term_debt }}</td>
+        <td>{{ statement.long_term_debt }}</td>
+    </tr>
+    {% endfor %}
+</table>
+{% else %}
+<p>No balance sheet data available for this company.</p>
+{% endif %}
+
+<!-- Sekce pro Cash Flow Statement -->
+<h3 id="cash_flow_statement">Cash Flow Statement</h3>
+{% if cash_flow_statements %}
+<table>
+    <tr>
+        <th>Fiscal Year</th>
+        <th>Operating Cash Flow</th>
+        <th>Investing Cash Flow</th>
+        <th>Financing Cash Flow</th>
+    </tr>
+    {% for statement in cash_flow_statements %}
+    <tr>
+        <td>{{ statement.fiscal_year }}</td>
+        <td>{{ statement.operating_cash_flow }}</td>
+        <td>{{ statement.investing_cash_flow }}</td>
+        <td>{{ statement.financing_cash_flow }}</td>
+    </tr>
+    {% endfor %}
+</table>
+{% else %}
+<p>No cash flow statement data available for this company.</p>
+{% endif %}
+
+<table>
+    <tr>
+        <th>Price</th>
+        <th>Volume</th>
+    </tr>
+    {% for statement in shareprices_statements %}
+    <tr>
+        <td>{{ statement.fiscal_year }}</td>
+        <td>{{ statement.operating_cash_flow }}</td>
+        <td>{{ statement.investing_cash_flow }}</td>
+        <td>{{ statement.financing_cash_flow }}</td>
+    </tr>
+    {% endfor %}
+</table>
+
+
+{% endblock %}
