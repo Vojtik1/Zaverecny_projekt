@@ -5,6 +5,10 @@ from django.shortcuts import render
 from simfin.names import *
 import os
 import pandas as pd
+import matplotlib.pyplot as plt
+from io import BytesIO
+import base64
+from django.http import HttpResponse
 from .models import Stock, IncomeStatement, BalanceSheet, CashFlowStatement, SharePrices
 
 sf.set_api_key('dacb95bc-907f-47cc-8c2d-2504aa3d32dd')
@@ -12,9 +16,41 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 simfin_data_path = os.path.join(BASE_DIR, 'simfin_data')
 sf.set_data_dir(simfin_data_path)
 
+# Kontrola a automatické stažení dat, pokud nejsou přítomná
+datasets = [
+    ('income', 'annual'),
+    ('balance', 'annual'),
+    ('cashflow', 'annual'),
+    ('shareprices', 'daily')
+]
+
+for dataset_name, variant in datasets:
+    dataset_path = os.path.join(simfin_data_path, f'us-{dataset_name}-{variant}.csv')
+    if not os.path.exists(dataset_path):
+        print(f"Dataset {dataset_name} není nalezen. Stahování ze SimFin API...")
+        sf.load(dataset=dataset_name, variant=variant, market='us', index=['Ticker', 'Fiscal Year'])
+
+def create_price_chart(close_prices):
+    dates = [price['date'] for price in close_prices]
+    prices = [price['close_price'] for price in close_prices]
+
+    # Vytvoření grafu
+    fig, ax = plt.subplots()
+    ax.plot(dates, prices, label='Close Price')
+
+    ax.set(xlabel='Date', ylabel='Close Price',
+           title='Stock Price Over Time')
+    ax.grid()
+
+    buf = BytesIO()
+    plt.savefig(buf, format='png')
+    buf.seek(0)
+    image_base64 = base64.b64encode(buf.getvalue()).decode('utf-8')
+    buf.close()
+
+    return image_base64
 
 def home(request):
-
     stocks = Stock.objects.all()
     if request.method == 'GET':
         market_cap_min = request.GET.get('market_cap_min')
@@ -25,12 +61,28 @@ def home(request):
         if market_cap_max:
             stocks = stocks.filter(market_cap__lte=market_cap_max)
 
+    # Výpočet průměrné návratnosti
+    average_return = None
+    if stocks.exists():
+        total_return = 0
+        count = 0
+        for stock in stocks:
+            share_prices = SharePrices.objects.filter(stock=stock).order_by('date')
+            if share_prices.count() > 1:
+                first_price = share_prices.first().close_price
+                last_price = share_prices.last().close_price
+                if first_price and last_price and first_price != 0:
+                    total_return += (last_price - first_price) / first_price
+                    count += 1
+        if count > 0:
+            average_return = (total_return / count) * 100
+
     context = {
-        'stocks': stocks
+        'stocks': stocks,
+        'average_return': average_return
     }
 
     return render(request, 'home.html', context)
-
 
 def format_large_numbers(value):
     try:
@@ -55,7 +107,6 @@ def stock_detail(request, ticker):
     stock_data_yf = yf.Ticker(ticker)
     yf_info = stock_data_yf.info
 
-
     # Nejprve načteme nebo vytvoříme záznam pro Stock
     stock, created = Stock.objects.get_or_create(ticker=ticker)
     stock.name = yf_info.get('shortName')
@@ -69,30 +120,36 @@ def stock_detail(request, ticker):
     stock.industry = yf_info.get('industry')
     stock.save()
 
+    share_prices = SharePrices.objects.filter(stock=stock)
+
+    close_prices = [
+        {'date': price.date, 'close_price': price.close_price}
+        for price in share_prices
+    ]
+    chart_image = create_price_chart(close_prices)
+
     try:
         # Načítání dat z datasetů s víceúrovňovým indexem
         income_df = sf.load(dataset='income', variant='annual', market='us', index=['Ticker', 'Fiscal Year'])
         balance_df = sf.load(dataset='balance', variant='annual', market='us', index=['Ticker', 'Fiscal Year'])
         cashflow_df = sf.load(dataset='cashflow', variant='annual', market='us', index=['Ticker', 'Fiscal Year'])
-        shareprices_df = sf.load(dataset='shareprices', variant='daily', market='us', index=['Ticker', 'Date'])
-
 
         # Income Statement
         if ticker in income_df.index.get_level_values('Ticker'):
             income_data = income_df.loc[ticker]
             for year in income_data.index.get_level_values('Fiscal Year'):
-                IncomeStatement.objects.get_or_create(
+                IncomeStatement.objects.update_or_create(
                     stock=stock,
                     fiscal_year=year,
                     defaults={
-                        'revenue': income_data.loc[year, 'Revenue'] if 'Revenue' in income_data.columns else 'N/A',
-                        'gross_profit': income_data.loc[year, 'Gross Profit'] if 'Gross Profit' in income_data.columns else 'N/A',
-                        'net_income': income_data.loc[year, 'Net Income'] if 'Net Income' in income_data.columns else 'N/A',
-                        'ebitda': (income_data.loc[year, 'Operating Income (Loss)'] + income_data.loc[year, 'Depreciation & Amortization']) if 'Operating Income (Loss)' in income_data.columns and 'Depreciation & Amortization' in income_data.columns else 'N/A',
-                        'operating_income': income_data.loc[year, 'Operating Income (Loss)'] if 'Operating Income (Loss)' in income_data.columns else 'N/A',
-                        'operating_expenses': income_data.loc[year, 'Operating Expenses'] if 'Operating Expenses' in income_data.columns else 'N/A',
-                        'cost_of_revenue': income_data.loc[year, 'Cost of Revenue'] if 'Cost of Revenue' in income_data.columns else 'N/A',
-                        'interest_expense': income_data.loc[year, 'Interest Expense, Net'] if 'Interest Expense, Net' in income_data.columns else 'N/A'
+                        'revenue': income_data.loc[year, 'Revenue'] if 'Revenue' in income_data.columns else None,
+                        'gross_profit': income_data.loc[year, 'Gross Profit'] if 'Gross Profit' in income_data.columns else None,
+                        'net_income': income_data.loc[year, 'Net Income'] if 'Net Income' in income_data.columns else None,
+                        'ebitda': (income_data.loc[year, 'Operating Income (Loss)'] + income_data.loc[year, 'Depreciation & Amortization']) if 'Operating Income (Loss)' in income_data.columns and 'Depreciation & Amortization' in income_data.columns else None,
+                        'operating_income': income_data.loc[year, 'Operating Income (Loss)'] if 'Operating Income (Loss)' in income_data.columns else None,
+                        'operating_expenses': income_data.loc[year, 'Operating Expenses'] if 'Operating Expenses' in income_data.columns else None,
+                        'cost_of_revenue': income_data.loc[year, 'Cost of Revenue'] if 'Cost of Revenue' in income_data.columns else None,
+                        'interest_expense': income_data.loc[year, 'Interest Expense, Net'] if 'Interest Expense, Net' in income_data.columns else None
                     }
                 )
 
@@ -100,16 +157,16 @@ def stock_detail(request, ticker):
         if ticker in balance_df.index.get_level_values('Ticker'):
             balance_data = balance_df.loc[ticker]
             for year in balance_data.index.get_level_values('Fiscal Year'):
-                BalanceSheet.objects.get_or_create(
+                BalanceSheet.objects.update_or_create(
                     stock=stock,
                     fiscal_year=year,
                     defaults={
-                        'total_assets': balance_data.loc[year, 'Total Assets'] if 'Total Assets' in balance_data.columns else 'N/A',
-                        'total_liabilities': balance_data.loc[year, 'Total Liabilities'] if 'Total Liabilities' in balance_data.columns else 'N/A',
-                        'total_equity': balance_data.loc[year, 'Total Equity'] if 'Total Equity' in balance_data.columns else 'N/A',
-                        'cash_and_equivalents': balance_data.loc[year, 'Cash, Cash Equivalents & Short Term Investments'] if 'Cash, Cash Equivalents & Short Term Investments' in balance_data.columns else 'N/A',
-                        'short_term_debt': balance_data.loc[year, 'Short Term Debt'] if 'Short Term Debt' in balance_data.columns else 'N/A',
-                        'long_term_debt': balance_data.loc[year, 'Long Term Debt'] if 'Long Term Debt' in balance_data.columns else 'N/A'
+                        'total_assets': balance_data.loc[year, 'Total Assets'] if 'Total Assets' in balance_data.columns else None,
+                        'total_liabilities': balance_data.loc[year, 'Total Liabilities'] if 'Total Liabilities' in balance_data.columns else None,
+                        'total_equity': balance_data.loc[year, 'Total Equity'] if 'Total Equity' in balance_data.columns else None,
+                        'cash_and_equivalents': balance_data.loc[year, 'Cash, Cash Equivalents & Short Term Investments'] if 'Cash, Cash Equivalents & Short Term Investments' in balance_data.columns else None,
+                        'short_term_debt': balance_data.loc[year, 'Short Term Debt'] if 'Short Term Debt' in balance_data.columns else None,
+                        'long_term_debt': balance_data.loc[year, 'Long Term Debt'] if 'Long Term Debt' in balance_data.columns else None
                     }
                 )
 
@@ -135,7 +192,7 @@ def stock_detail(request, ticker):
                     free_cash_flow = None  # Nastavíme na None, pokud není možné spočítat FCF
 
                 # Uložení dat do databáze
-                CashFlowStatement.objects.get_or_create(
+                CashFlowStatement.objects.update_or_create(
                     stock=stock,
                     fiscal_year=year,
                     defaults={
@@ -146,21 +203,8 @@ def stock_detail(request, ticker):
                     }
                 )
 
-        # Share Prices
-        if ticker in shareprices_df.index.get_level_values('Ticker'):
-            shareprices_data = shareprices_df.loc[ticker]
-            for date in shareprices_data.index.get_level_values('Date'):
-                SharePrices.objects.get_or_create(
-                    stock=stock,
-                    date=date,
-                    defaults={
-                        'close_price': shareprices_data.loc[date, 'Close'] if 'Close' in shareprices_data.columns else 'N/A',
-                        'volume': shareprices_data.loc[date, 'Volume'] if 'Volume' in shareprices_data.columns else 'N/A'
-                    }
-                )
-
     except Exception as e:
-        print(f"Error loading SimFin data: {e}")
+        print(f"Error loading SimFin data for {ticker}: {e}")
 
     context = {
         'stock': stock,
@@ -197,15 +241,13 @@ def stock_detail(request, ticker):
         ],
         'share_prices': [
             {
-                'close_price': object.close_price,
-                'volume': object.volume
+                'date': statement.date,
+                'close_price': statement.close_price,
+                'volume': statement.volume
             }
-        ]
+            for statement in SharePrices.objects.filter(stock=stock)
+        ],
+        'chart_image': chart_image
     }
 
-
-
     return render(request, 'stock_detail.html', context)
-
-
-

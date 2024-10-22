@@ -10,7 +10,7 @@
 <h3>Current Data from yfinance</h3>
 <table>
     <tr>
-        <th>Last Price:</th>
+        <th>Price</th>
         <td>{{ stock.last_price }}</td>
     </tr>
     <tr>
@@ -30,10 +30,18 @@
         <td>{{ stock.sector }}</td>
     </tr>
     <tr>
-        <th>industry:</th>
+        <th>Industry:</th>
         <td>{{ stock.industry }}</td>
     </tr>
 </table>
+
+<!-- Graf cen akcií -->
+<h3>Stock Price Over Time</h3>
+{% if chart_image %}
+    <img src="data:image/png;base64,{{ chart_image }}" alt="Stock Price Chart">
+{% else %}
+    <p>No price data available to display the chart.</p>
+{% endif %}
 
 <!-- Odkazy na jednotlivé sekce výkazů -->
 <h3>Financial Statements</h3>
@@ -120,20 +128,25 @@
 <p>No cash flow statement data available for this company.</p>
 {% endif %}
 
+<!-- Sekce pro Share Prices -->
+<h3>Share Prices</h3>
+{% if share_prices %}
 <table>
     <tr>
-        <th>Price</th>
+        <th>Date</th>
+        <th>Close Price</th>
         <th>Volume</th>
     </tr>
-    {% for statement in shareprices_statements %}
+    {% for price in share_prices %}
     <tr>
-        <td>{{ statement.fiscal_year }}</td>
-        <td>{{ statement.operating_cash_flow }}</td>
-        <td>{{ statement.investing_cash_flow }}</td>
-        <td>{{ statement.financing_cash_flow }}</td>
+        <td>{{ price.date }}</td>
+        <td>{{ price.close_price }}</td>
+        <td>{{ price.volume }}</td>
     </tr>
     {% endfor %}
 </table>
-
+{% else %}
+<p>No share price data available for this company.</p>
+{% endif %}
 
 {% endblock %}
